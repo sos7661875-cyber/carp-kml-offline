@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#173955">
+  <meta name="description" content="離線空投CARP計算與KML產生工具">
+  <title>CARP KML 產生器</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <link rel="apple-touch-icon" href="./favicon.svg">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">OFFLINE TOOL</p>
+      <h1>CARP KML 產生器</h1>
+    </div>
+    <span class="offline-status" id="offlineStatus">可離線</span>
+  </header>
+
+  <main class="app-shell">
+    <form id="carpForm" novalidate>
+      <section class="panel">
+        <h2>任務</h2>
+        <label class="field full">
+          <span>任務名稱</span>
+          <input id="missionName" name="missionName" value="CARP Mission" autocomplete="off" required>
+        </label>
+        <div class="segmented" role="group" aria-label="執行課目">
+          <button type="button" class="segment active" data-mode="cds" aria-pressed="true">CDS</button>
+          <button type="button" class="segment" data-mode="per" aria-pressed="false">人員</button>
+          <button type="button" class="segment" data-mode="he" aria-pressed="false">重裝備</button>
+        </div>
+        <input type="hidden" id="mode" value="cds">
+      </section>
+
+      <section class="panel">
+        <h2>空投資料</h2>
+        <div class="field-grid">
+          <label class="field"><span>重量 <small>lb</small></span><input id="weight" type="number" inputmode="decimal" value="7915" required></label>
+          <label class="field station-field"><span>站位</span><input id="station" type="number" inputmode="decimal" value="659"></label>
+          <label class="field"><span>空投高度 <small>ft AGL</small></span><input id="dropAltitude" type="number" inputmode="decimal" value="600" required></label>
+          <label class="field"><span>指示空速 <small>kt</small></span><input id="ias" type="number" inputmode="decimal" value="130" required></label>
+          <label class="field"><span>溫度 <small>°C</small></span><input id="temperature" type="number" inputmode="decimal" value="28" required></label>
+          <label class="field"><span>QNH <small>inHg</small></span><input id="qnh" type="number" inputmode="decimal" step="0.01" value="29.92" required></label>
+          <label class="field"><span>Terrain Elevation <small>ft MSL</small></span><input id="terrainElevation" type="number" inputmode="decimal" value="484" required></label>
+          <label class="field"><span>Point of Impact Elevation <small>ft MSL</small></span><input id="impactElevation" type="number" inputmode="decimal" value="433" required></label>
+        </div>
+
+        <div class="conditional" data-panel="cds">
+          <h3>CDS彈道選項</h3>
+          <div class="field-grid">
+            <label class="field"><span>貨物包數</span><input id="containerCount" type="number" inputmode="numeric" min="1" step="1" value="6"></label>
+            <label class="field"><span>裝載品名 <small>不影響計算</small></span><input id="loadName" value="大米" autocomplete="off"></label>
+          </div>
+        </div>
+
+        <div class="conditional" data-panel="per" hidden>
+          <h3>人員彈道選項</h3>
+          <div class="field-grid">
+            <label class="field"><span>RF Column</span><select id="rfColumn"><option>I</option><option selected>II</option><option>III</option></select></label>
+            <label class="field"><span>Exit Method</span><select id="exitMethod"><option selected>DOOR</option><option>RAMP</option></select></label>
+          </div>
+        </div>
+
+        <div class="conditional" data-panel="he" hidden>
+          <h3>重裝備彈道選項</h3>
+          <div class="field-grid">
+            <label class="field"><span>Recovery Chute Count</span><select id="recoveryCount"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></label>
+            <label class="field"><span>Extraction Chute</span><select id="extractionChute"><option>15'RS</option><option selected>22'RS</option><option>28'RS</option><option>G-14</option></select></label>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>航向、風與PI座標</h2>
+        <div class="single-row">
+          <label class="field"><span>任務真向 <small>°T</small></span><input id="trueCourse" type="number" inputmode="decimal" min="0" max="360" value="360" required></label>
+        </div>
+        <div class="paired-row">
+          <label class="field"><span>風向 <small>°T</small></span><input id="windDirection" type="number" inputmode="decimal" min="0" max="360" placeholder="無風可留白"></label>
+          <label class="field"><span>風速 <small>kt</small></span><input id="windSpeed" type="number" inputmode="decimal" min="0" value="0" required></label>
+        </div>
+        <div class="field-grid">
+          <label class="field"><span>PI緯度 <small>度分分</small></span><input id="piLat" value="N222005" autocapitalize="characters" autocomplete="off" required></label>
+          <label class="field"><span>PI經度 <small>度分分</small></span><input id="piLon" value="E1202205" autocapitalize="characters" autocomplete="off" required></label>
+        </div>
+        <p class="input-hint">支援 N／S、E／W；可省略小數點，例如 N222005＝N22°20.05′。</p>
+      </section>
+
+      <section class="panel">
+        <h2>圖形範圍</h2>
+        <div class="single-row">
+          <label class="field"><span>CARP前置線 <small>NM</small></span><input id="forwardDistance" type="number" inputmode="decimal" min="0" value="10" required></label>
+        </div>
+        <div class="paired-row">
+          <label class="field"><span>幅員左 <small>yd</small></span><input id="areaLeft" type="number" inputmode="decimal" min="0" value="300" required></label>
+          <label class="field"><span>幅員右 <small>yd</small></span><input id="areaRight" type="number" inputmode="decimal" min="0" value="300" required></label>
+        </div>
+        <div class="paired-row last">
+          <label class="field"><span>PI前方 <small>yd</small></span><input id="areaFront" type="number" inputmode="decimal" min="0" value="200" required></label>
+          <label class="field"><span>PI後方 <small>yd</small></span><input id="areaBack" type="number" inputmode="decimal" min="0" value="700" required></label>
+        </div>
+      </section>
+
+      <div id="errorBox" class="message error" role="alert" hidden></div>
+      <div id="warningBox" class="message warning" role="status" hidden></div>
+
+      <section class="results" aria-live="polite">
+        <div class="results-header"><h2>計算結果</h2><span>輸入後自動更新</span></div>
+        <div class="metric-grid">
+          <div class="metric"><span>FTD</span><strong id="resultFtd">—</strong><small>yd</small></div>
+          <div class="metric"><span>2° Offset</span><strong id="resultOffset">—</strong><small>yd</small></div>
+          <div class="metric"><span>5 KT H/T</span><strong id="resultHt">—</strong><small>yd</small></div>
+        </div>
+        <div class="displacement-grid">
+          <div><span>前後位移</span><strong id="resultAlong">—</strong></div>
+          <div><span>左右位移</span><strong id="resultCross">—</strong></div>
+        </div>
+        <div class="coordinate-card">
+          <span>CARP座標</span>
+          <strong id="resultDmm">—</strong>
+          <small id="resultDms">—</small>
+          <small id="resultKml">—</small>
+        </div>
+        <dl class="details">
+          <div><dt>TAS</dt><dd id="resultTas">—</dd></div>
+          <div><dt>GS</dt><dd id="resultGs">—</dd></div>
+          <div><dt>TTF</dt><dd id="resultTtf">—</dd></div>
+          <div><dt>FTT</dt><dd id="resultFtt">—</dd></div>
+        </dl>
+      </section>
+
+      <button class="download-button" id="downloadButton" type="submit">產生 KML（儲存／分享）</button>
+      <p class="file-name" id="fileName">檔名：CARP Mission.kml</p>
+    </form>
+  </main>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>

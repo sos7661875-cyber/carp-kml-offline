@@ -1,0 +1,17 @@
+{
+  "name": "CARP KML 產生器",
+  "short_name": "CARP KML",
+  "description": "離線空投CARP計算與KML產生工具",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0b131b",
+  "theme_color": "#173955",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
