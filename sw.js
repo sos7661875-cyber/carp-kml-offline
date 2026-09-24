@@ -1,4 +1,4 @@
-const CACHE = "carp-kml-v2";
+const CACHE = "carp-kml-v4";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.webmanifest", "./favicon.svg"];
 
 self.addEventListener("install", event => {

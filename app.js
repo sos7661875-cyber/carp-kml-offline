@@ -60,16 +60,17 @@ const degToRad = value => value * Math.PI / 180;
 const radToDeg = value => value * 180 / Math.PI;
 const normalize360 = value => ((value % 360) + 360) % 360;
 
-function forecastLinear(x, knownY, knownX) {
-  const meanX = knownX.reduce((a,b)=>a+b,0) / knownX.length;
-  const meanY = knownY.reduce((a,b)=>a+b,0) / knownY.length;
-  let numerator = 0;
-  let denominator = 0;
+function interpolateTable(x, knownY, knownX) {
+  if (knownX.length !== knownY.length || knownX.length < 2) throw new Error("彈道表資料不完整");
+  const first = knownX[0], last = knownX[knownX.length - 1];
+  if (x < Math.min(first,last) || x > Math.max(first,last)) throw new Error(`輸入 ${x} 超出彈道表範圍 ${Math.min(first,last)}–${Math.max(first,last)}`);
   for (let i=0; i<knownX.length; i++) {
-    numerator += (knownX[i]-meanX) * (knownY[i]-meanY);
-    denominator += (knownX[i]-meanX) ** 2;
+    if (x === knownX[i]) return knownY[i];
+    if (i + 1 < knownX.length && (x - knownX[i]) * (x - knownX[i+1]) < 0) {
+      return knownY[i] + (x - knownX[i]) * (knownY[i+1] - knownY[i]) / (knownX[i+1] - knownX[i]);
+    }
   }
-  return meanY + (denominator ? numerator / denominator : 0) * (x - meanX);
+  throw new Error("彈道表重量資料順序錯誤");
 }
 
 function numeric(id, required=true) {
@@ -155,7 +156,7 @@ function kmlCoord(point) { return `${point.lon.toFixed(6)},${point.lat.toFixed(6
 function rangeWarning(value, values, label, warnings) {
   const min = Math.min(...values);
   const max = Math.max(...values);
-  if (value < min || value > max) warnings.push(`${label} ${value} 超出彈道表範圍 ${min}–${max}，結果依Excel公式外推。`);
+  if (value < min || value > max) throw new Error(`${label} ${value} 超出彈道表範圍 ${min}–${max}`);
 }
 
 function ballisticFor(mode, input, warnings) {
@@ -164,18 +165,18 @@ function ballisticFor(mode, input, warnings) {
     rangeWarning(perContainer, BALLISTIC.cds.load, "每包平均重量", warnings);
     rangeWarning(input.station, BALLISTIC.cds.stations, "站位", warnings);
     return {
-      vd: forecastLinear(perContainer, BALLISTIC.cds.vd, BALLISTIC.cds.load),
-      rf: forecastLinear(perContainer, BALLISTIC.cds.rf, BALLISTIC.cds.load),
-      tfc: forecastLinear(perContainer, BALLISTIC.cds.tfc, BALLISTIC.cds.load),
-      dq: forecastLinear(perContainer, BALLISTIC.cds.dq, BALLISTIC.cds.load),
-      exit: forecastLinear(input.station, BALLISTIC.cds.exits, BALLISTIC.cds.stations)
+      vd: interpolateTable(perContainer, BALLISTIC.cds.vd, BALLISTIC.cds.load),
+      rf: interpolateTable(perContainer, BALLISTIC.cds.rf, BALLISTIC.cds.load),
+      tfc: interpolateTable(perContainer, BALLISTIC.cds.tfc, BALLISTIC.cds.load),
+      dq: interpolateTable(perContainer, BALLISTIC.cds.dq, BALLISTIC.cds.load),
+      exit: interpolateTable(input.station, BALLISTIC.cds.exits, BALLISTIC.cds.stations)
     };
   }
   if (mode === "per") {
     rangeWarning(input.weight, BALLISTIC.personnel.load, "人員重量", warnings);
     return {
       vd: 180,
-      rf: forecastLinear(input.weight, BALLISTIC.personnel[input.rfColumn], BALLISTIC.personnel.load),
+      rf: interpolateTable(input.weight, BALLISTIC.personnel[input.rfColumn], BALLISTIC.personnel.load),
       tfc: 5.4,
       dq: 0,
       exit: input.exitMethod === "DOOR" ? 3.2 : 3.8
@@ -189,10 +190,10 @@ function ballisticFor(mode, input, warnings) {
   rangeWarning(input.weight, extraction.load, "重裝備重量（抽出傘）", warnings);
   return {
     vd: fixed.vd,
-    rf: forecastLinear(input.weight, recovery.rf, recovery.load),
+    rf: interpolateTable(input.weight, recovery.rf, recovery.load),
     tfc: fixed.tfc,
     dq: fixed.dq,
-    exit: forecastLinear(input.weight, extraction.bands[band], extraction.load)
+    exit: interpolateTable(input.weight, extraction.bands[band], extraction.load)
   };
 }
 
@@ -223,8 +224,7 @@ function readInputs() {
     piLat: parseDmm($("piLat").value, "lat"),
     piLon: parseDmm($("piLon").value, "lon"),
     forwardDistance: numeric("forwardDistance"),
-    areaLeft: numeric("areaLeft"),
-    areaRight: numeric("areaRight"),
+    areaWidth: numeric("areaWidth"),
     areaFront: numeric("areaFront"),
     areaBack: numeric("areaBack"),
     containerCount: numeric("containerCount"),
@@ -236,7 +236,7 @@ function readInputs() {
   };
   if (input.weight <= 0 || input.dropAltitude <= 0 || input.ias <= 0) throw new Error("重量、空投高度與指示空速必須大於0");
   if (input.mode === "cds" && input.containerCount <= 0) throw new Error("貨物包數必須大於0");
-  if ([input.forwardDistance,input.areaLeft,input.areaRight,input.areaFront,input.areaBack,input.windSpeed].some(v => v < 0)) throw new Error("距離與風速不可為負值");
+  if ([input.forwardDistance,input.areaWidth,input.areaFront,input.areaBack,input.windSpeed].some(v => v < 0)) throw new Error("距離與風速不可為負值");
   return input;
 }
 
@@ -340,10 +340,10 @@ function createKml(result) {
   const forward = destination(carp.lat,carp.lon,input.trueCourse+180,input.forwardDistance*NM_TO_M);
   // For the PI area, "front" is the inbound/CARP side (reciprocal of true course),
   // while "back" continues along the entered true course.
-  const leftFront = offsetPoint(pi.lat,pi.lon,input.trueCourse,-input.areaFront,-input.areaLeft);
-  const rightFront = offsetPoint(pi.lat,pi.lon,input.trueCourse,-input.areaFront,input.areaRight);
-  const rightBack = offsetPoint(pi.lat,pi.lon,input.trueCourse,input.areaBack,input.areaRight);
-  const leftBack = offsetPoint(pi.lat,pi.lon,input.trueCourse,input.areaBack,-input.areaLeft);
+  const leftFront = offsetPoint(pi.lat,pi.lon,input.trueCourse,-input.areaFront,-input.areaWidth);
+  const rightFront = offsetPoint(pi.lat,pi.lon,input.trueCourse,-input.areaFront,input.areaWidth);
+  const rightBack = offsetPoint(pi.lat,pi.lon,input.trueCourse,input.areaBack,input.areaWidth);
+  const leftBack = offsetPoint(pi.lat,pi.lon,input.trueCourse,input.areaBack,-input.areaWidth);
   const name = escapeXml(input.missionName);
 
   return `<?xml version="1.0" encoding="UTF-8"?>\n`+
