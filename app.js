@@ -417,6 +417,7 @@ function loadMode(mode) {
 document.querySelectorAll(".segment").forEach(button => button.addEventListener("click", () => {
   saveCurrentMode();
   loadMode(button.dataset.mode);
+  saveDraft();
 }));
 
 $("carpForm").addEventListener("input", recalculate);
@@ -432,4 +433,34 @@ window.addEventListener("offline", () => $("offlineStatus").textContent = "é›¢ç·
 
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(()=>{}));
 
-loadMode("cds");
+const DRAFT_KEY = "carp-kml-draft-v1";
+function saveDraft() {
+  try {
+    saveCurrentMode();
+    const fields = {};
+    document.querySelectorAll("#carpForm input[id], #carpForm select[id]").forEach(el => fields[el.id] = el.value);
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({version:1, fields, modes:modeState}));
+  } catch (_) { /* Storage may be unavailable; calculation remains usable. */ }
+}
+function restoreDraft() {
+  try {
+    const draft = JSON.parse(localStorage.getItem(DRAFT_KEY));
+    if (!draft || draft.version !== 1 || !draft.fields || !Object.hasOwn(MODE_DEFAULTS, draft.fields.mode)) return false;
+    for (const mode of Object.keys(MODE_DEFAULTS)) {
+      const saved = draft.modes?.[mode];
+      if (!saved || typeof saved !== "object") continue;
+      for (const id of MODE_FIELDS) if (typeof saved[id] === "string" && saved[id].length <= 2000) modeState[mode][id] = saved[id];
+    }
+    document.querySelectorAll("#carpForm input[id], #carpForm select[id]").forEach(el => {
+      const value = draft.fields[el.id];
+      if (typeof value === "string" && value.length <= 2000) el.value = value;
+    });
+    saveCurrentMode();
+    loadMode(draft.fields.mode);
+    return true;
+  } catch (_) { return false; }
+}
+if (!restoreDraft()) loadMode("cds");
+$("carpForm").addEventListener("input", saveDraft);
+$("carpForm").addEventListener("change", saveDraft);
+window.addEventListener("pagehide", saveDraft);

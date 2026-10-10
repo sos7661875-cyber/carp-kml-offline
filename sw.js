@@ -1,4 +1,4 @@
-const CACHE = "carp-kml-v5-parachute";
+const CACHE = "carp-kml-v6-autosave";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.webmanifest", "./favicon.svg", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", event => {
